@@ -28,6 +28,7 @@ library(tidyverse)
 # or library('tidyverse')
 # or library("tidyverse")
 ```
+
 Now we include the library (in the beginning of the session, script). We can also include the library any place before the first use of any functions, data, etc. included in the library.
 
 ## 1. Orientation data set
@@ -53,29 +54,37 @@ Use [read.csv]("http://goo.gl/Zjr9aF") to download data.
 Please provide the answers below.  
 
 ### 1.1
+```{r}
 > mean(homo[,2])
 [1] 61.22429
+```
 
 ### 1.2  
+```{r}
 > median(homo[,2])
 [1] 61.93
+```
 
 ## Calculate standard deviation and standard error of [s] duration using sd() and se()
 Please provide the answers below.
 
 ### 1.3  
+```{r}
 > sd(homo[,2])
 [1] 7.519043
+```
 
 ### 1.4  
+```{r}
 > se<-function(x){sd(x)/sqrt(length(x))}
 > se(homo$s.duration.ms)
 [1] 2.009549
+```
 
 ## Provide a summary of your data set
 
 ### 1.5  
-
+```{r}
 > summary(homo)
     speaker  s.duration.ms   vowel.duration.ms average.f0.Hz    f0.range.Hz    
  A      :1   Min.   :45.13   Min.   : 93.68    Min.   :100.3   Min.   : 37.40  
@@ -100,7 +109,7 @@ Please provide the answers below.
  Mean   :27.86  
  3rd Qu.:30.00  
  Max.   :40.00  
-
+```
 
 ## Confidence interval
 Confidence intervals are used to indicate how confident we are that a reported statistic falls within a certain range. Confidence intervals can be calculated for a variety of statistics, such as the mean, median, or slope of a linear regression. Here we will focus on confidences intervals for means.  
@@ -121,15 +130,19 @@ homo %>%
 Please provide the answer below:
 
 ### 2.1  
+```{r}
 > CI <- 1.96*sd(homo$vowel.duration.ms)/sqrt(length(homo$vowel.duration.ms))
 > CI
 [1] 7.119218
+```
 
 ## Calculate 95% confidence interval for mean vowel duration variable for heterosexual speakers.
 > hetero<-c(homo$vowel.duration.ms[1], homo$vowel.duration.ms[2], homo$vowel.duration.ms[7], homo$vowel.duration.ms[8], homo$vowel.duration.ms[12], homo$vowel.duration.ms[13], homo$vowel.duration.ms[14])
+```{r}
 > CI <- 1.96*sd(hetero)/sqrt(length(hetero))
 > CI
 [1] 9.45237
+```
 
 ### 2.2  
 

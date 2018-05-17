@@ -1,0 +1,585 @@
+### 1.0 Read the data from file to the variable `shva`.
+```{r 1.0}
+
+library(tidyverse)
+library(lme4)
+library(vcd)
+
+shva<-read.delim('https://raw.githubusercontent.com/agricolamz/2018-MAG_R_course/master/data/duryagin_ReductionRussian.txt')
+```
+
+### 1.1 Scatterplot `f1` and `f2` using `ggplot()`. 
+```{r 1.1}
+library(ggplot2)
+
+shva %>%
+ggplot(aes(x=f2,y=f1))+
+geom_point(aes(color=as.factor(vowel)))+
+labs(x='f2', y='f1', title='f2 and f1 of the reduced and stressed vowels')+
+scale_x_reverse()+
+scale_y_reverse()+
+theme(legend.position='none')+
+labs(caption='Data from Duryagin 2018')
+```
+
+### 1.2 Plot the boxplots of `f1` and `f2` for each vowel using `ggplot()`.
+```{r 1.2}
+# f1 boxplot
+shva%>%
+ggplot(aes(x=vowel, y=f1, fill=vowel))+
+geom_boxplot()+
+labs(y='f1', title='f1 distribution in each vowel', caption='Data from Duryagin 2018', x=element_blank())+
+coord_flip()+
+theme(legend.position='none')
+
+# f2 boxplot
+shva%>%
+ggplot(aes(x=vowel, y=f2, fill=vowel))+
+geom_boxplot()+
+labs(y='f2', title='f2 distribution in each vowel', caption='Data from Duryagin 2018', x=element_blank())+
+coord_flip()+
+theme(legend.position="none")
+```
+
+### 1.3 Which `f1` can be considered outliers in _a_ vowel?
+```{r 1.3}
+F1a <-subset(shva$f1,shva$vowel=='a')
+iqr<-1.5*IQR(F1a)
+quant<-quantile(F1a)
+upper_lim<-iqr+quant[4]
+low_lim<-quant[2]-iqr
+outl<-subset(F1a, F1a<low_lim | F1a>upper_lim)
+outl
+#[1] 686 826 679
+```
+
+### 1.4 Calculate Pearson's correlation of `f1` and `f2` (all data)
+```{r 1.4}
+cor(shva$f1, shva$f2, method = 'pearson')
+#[1] -0.5797475
+```
+
+### 1.5 Calculate Pearson's correlation of `f1` and `f2` for each vowel
+```{r 1.5}
+#a
+cor(subset(shva$f1,shva$vowel=='a'), subset(shva$f2,shva$vowel=='a'), method = 'pearson')
+#[1] -0.01126545
+
+#y
+cor(subset(shva$f1,shva$vowel=='y'), subset(shva$f2,shva$vowel=='y'), method = 'pearson')
+#[1] 0.181871
+
+#A
+cor(subset(shva$f1,shva$vowel=='A'), subset(shva$f2,shva$vowel=='A'), method = 'pearson')
+#[1] 0.1032741
+
+```
+
+### 1.6 Use the linear regression model to predict f2 by f1.
+```{r 1.6}
+model<-lm(shva$f1 ~ shva$f2)
+summary(model)
+
+Call:
+lm(formula = f1 ~ f2, data = shva)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-311.684  -54.682    9.209   56.291  232.010 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept) 1678.94083  121.68477  13.797  < 2e-16 ***
+f2            -0.78392    0.08765  -8.944 9.53e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 96.69 on 158 degrees of freedom
+Multiple R-squared:  0.3361,	Adjusted R-squared:  0.3319 
+F-statistic: 79.99 on 1 and 158 DF,  p-value: 9.533e-16
+```
+
+### 1.6.1 Provide the result regression formula
+```{r 1.6.1}
+y=1678.94083-0.78392x+E where E~N(0;96.69^2)
+```
+
+### 1.6.2 Provide the adjusted R^2
+```{r 1.6.2}
+Adjusted R-squared:  0.3319 
+```
+
+### 1.6.3 Add the regression line in scatterplot 1.1
+```{r 1.6.3}
+#Plot:
+shva%>%
+ggplot(aes(x=f2, y=f1))+
+geom_point(aes(colour=as.factor(vowel)))+
+labs(x='f2', y='f1', title='f2 and f1 of the reduced and stressed vowels', caption='Data from Duryagin 2018')+ 
+scale_x_reverse()+
+scale_y_reverse()+
+theme(legend.position="none")+  
+geom_line(aes(y=fitted(model)))
+
+```
+
+
+### 1.7 Use the mixed-efects model to predict f2 by f1 using vowel intercept as a random effect
+
+```{r 1.7}
+
+model1<-lmer(shva$f1 ~ shva$f2+(1|shva$vowel))
+summary(model1)
+
+Linear mixed model fit by REML ['lmerMod']
+Formula: shva$f1 ~ shva$f2 + (1 | shva$vowel)
+
+REML criterion at convergence: 1732.1
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-2.2968 -0.6387 -0.0489  0.3886  4.8278 
+
+Random effects:
+ Groups     Name        Variance Std.Dev.
+ shva$vowel (Intercept) 16741    129.39  
+ Residual                2794     52.86  
+Number of obs: 160, groups:  shva$vowel, 3
+
+Fixed effects:
+             Estimate Std. Error t value
+(Intercept) 489.32283  119.55180   4.093
+shva$f2       0.06269    0.06679   0.939
+
+Correlation of Fixed Effects:
+        (Intr)
+shva$f2 -0.780
+```
+
+### 1.7.1 Provide the fixed effects formula
+```{r 1.7.1}
+y=489.32283+0.06269x
+```
+
+### 1.7.2 Provide the variance for intercept argument for vowel random effects
+```{r 1.7.2}
+Variance: 16741
+```
+
+### 1.7.3 Add the regression line in scatterplot 1.1
+```{r 1.7.3}
+#Plot:
+shva%>%
+ggplot(aes(x=f2, y=f1))+
+geom_point(aes(colour=as.factor(vowel)))+
+labs(x='f2', y='f1', title='f2 and f1 of the reduced and stressed vowels', caption='Data from Duryagin 2018')+
+scale_x_reverse()+ 
+scale_y_reverse()+ 
+theme(legend.position="none")+ 
+geom_line(aes(y=fitted(model1), colour=vowel))
+
+```
+
+
+
+### 2.0 Read the data from file to the variable `elp`.
+```{r 2.0}
+elp<-read.csv('https://raw.githubusercontent.com/agricolamz/2018-MAG_R_course/master/data/ELP.csv')
+```
+
+### 2.1 Which two variables have the highest Pearson's correlaton value?
+```{r 2.1}
+#Mean_Rt and Length:
+cor(elp$Length, elp$SUBTLWF, method='pearson')
+#[1] -0.125193
+cor(elp$SUBTLWF, elp$Mean_RT, method='pearson')
+#[1] -0.1457099
+cor(elp$Mean_RT, elp$Length, method='pearson')
+#[1] 0.5276826
+```
+
+### 2.2 Group your data by parts of speech and make a scatterplot of SUBTLWF and Mean_RT.
+```{r 2.2}
+
+elp %>%
+ggplot(aes(x=SUBTLWF, y=Mean_RT, colour=Length))+
+labs(caption='Data from (Balota et al. 2007)')+
+geom_point() + 
+theme_bw()+
+facet_wrap(~POS)+
+scale_x_log10()+
+scale_color_continuous(low="lightblue", high="red")
+
+```
+
+### 2.3 Use the linear regression model to predict `Mean_RT` by `log(SUBTLWF)` and `POS`.
+```{r 2.3}
+
+model2<-lm(elp$Mean_RT~log(elp$SUBTLWF)+elp$POS)
+summary(model2)
+
+Call:
+lm(formula = elp$Mean_RT ~ log(elp$SUBTLWF) + elp$POS)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-227.41  -66.29  -13.90   49.19  417.45 
+
+Coefficients:
+                 Estimate Std. Error t value Pr(>|t|)    
+(Intercept)       786.176      8.340  94.261  < 2e-16 ***
+log(elp$SUBTLWF)  -37.573      1.846 -20.354  < 2e-16 ***
+elp$POSNN         -12.530      9.347  -1.341 0.180427    
+elp$POSVB         -42.804     11.122  -3.849 0.000127 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 102.7 on 876 degrees of freedom
+Multiple R-squared:  0.3408,	Adjusted R-squared:  0.3385 
+F-statistic:   151 on 3 and 876 DF,  p-value: < 2.2e-16
+```
+
+### 2.3.1 Provide the result regression formula
+```{r 2.3.1}
+y=786.176-37.573x+E where E~N(0;102.7^2)
+```
+
+### Provide the adjusted R^2
+```{r 2.3.2}
+Adjusted R-squared:  0.3385
+```
+
+### 2.3.3 Add the regression line in scatterplot 1.1
+```{r 2.3.3}
+#Plot:
+elp %>%
+ggplot(aes(x=log(SUBTLWF), y=Mean_RT, colour=Length))+
+geom_point()+  
+theme_bw()+
+scale_color_continuous(low="skyblue", high="red")+
+labs(x="log(SUBTLWF)", caption='Data from (Balota et al. 2007)')+ 
+geom_smooth(method="lm", se=FALSE, colour='black') 
+```
+
+### 2.4 Use the mixed-efects model to predict `Mean_RT` by `log(SUBTLWF)` using POS intercept as a random effect
+```{r 2.4}
+
+model3 <- lmer(elp$Mean_RT~log(elp$SUBTLWF) + (1|elp$POS))
+summary(model3)
+
+Linear mixed model fit by REML ['lmerMod']
+Formula: elp$Mean_RT ~ log(elp$SUBTLWF) + (1 | elp$POS)
+
+REML criterion at convergence: 10644.2
+
+Scaled residuals: 
+    Min      1Q  Median      3Q     Max 
+-2.2154 -0.6436 -0.1355  0.4985  4.0882 
+
+Random effects:
+ Groups   Name        Variance Std.Dev.
+ elp$POS  (Intercept)   414.4   20.36  
+ Residual             10543.1  102.68  
+Number of obs: 880, groups:  elp$POS, 3
+
+Fixed effects:
+                 Estimate Std. Error t value
+(Intercept)       767.709     12.433   61.75
+log(elp$SUBTLWF)  -37.666      1.844  -20.43
+
+Correlation of Fixed Effects:
+            (Intr)
+l($SUBTLWF) 0.080 
+```
+### 2.4.1 Provide the fixed effects formula
+```{r 2.4.1}
+y=767.7093-37.666x
+```
+
+### 2.4.2 Provide the variance for intercept argument for `POS` random effects
+```{r 2.4.2}
+Variance = 414.4
+```
+
+### 2.4.3 Add the regression line to the scatterplot
+```{r 2.4.3}
+#Plot:
+elp %>%
+ggplot(aes(x=log(SUBTLWF), y=Mean_RT, colour=POS))+ 
+geom_point()+ 
+labs(x="log(SUBTLWF)", caption = 'Data from (Balota et al. 2007)')+
+facet_wrap( ~ POS)+ 
+theme(legend.position="none")+
+geom_smooth(method="lm", se=FALSE, colour='black')
+
+```
+
+### 3. Dutch causative constructions
+### 3.0 Read the data from file to the variable `d_caus`.
+```{r 3.0}
+d_caus<-read.csv('https://raw.githubusercontent.com/agricolamz/2018-MAG_R_course/master/data/dutch_causatives.csv')
+```
+
+### 3.1 We are going to test whether the association between `Aux` and other categorical variables (`Aux` ~ `CrSem`, `Aux` ~ `CeSem`, etc) is statistically significant. The assiciation with which variable should be analysed using Fisher's Exact Test and not using Pearson's Chi-squared Test? Is this association statistically significant?
+```{r 3.1}
+As it can be seen from the results (code below), we can't use Pearson's chi-square test to test the association between Auc and CeSynt, probably because the expected frequences came out to be too low. But, considering the p-value of Fisher's test, this association is still statistically significant.
+```
+```
+fisher.test(d_caus$Aux, d_caus$CrSem)
+
+	Fisher's Exact Test for Count Data
+
+data:  d_caus$Aux and d_caus$CrSem
+p-value < 2.2e-16
+alternative hypothesis: true odds ratio is not equal to 1
+95 percent confidence interval:
+ 0.008419266 0.034852997
+sample estimates:
+odds ratio 
+0.01753372 
+
+chisq.test(d_caus$Aux, d_caus$CrSem)
+
+	Pearson's Chi-squared test with Yates' continuity correction
+
+data:  d_caus$Aux and d_caus$CrSem
+X-squared = 244.2, df = 1, p-value < 2.2e-16
+
+
+fisher.test(d_caus$Aux, d_caus$CeSem)
+
+	Fisher's Exact Test for Count Data
+
+data:  d_caus$Aux and d_caus$CeSem
+p-value = 0.06337
+alternative hypothesis: true odds ratio is not equal to 1
+95 percent confidence interval:
+ 0.3808783 1.0364837
+sample estimates:
+odds ratio 
+ 0.6273193 
+
+chisq.test(d_caus$Aux, d_caus$CeSem)
+
+	Pearson's Chi-squared test with Yates' continuity correction
+
+data:  d_caus$Aux and d_caus$CeSem
+X-squared = 3.336, df = 1, p-value = 0.06778
+
+
+fisher.test(d_caus$Aux, d_caus$CdEvSem)
+
+	Fisher's Exact Test for Count Data
+
+data:  d_caus$Aux and d_caus$CdEvSem
+p-value = 4.265e-05
+alternative hypothesis: true odds ratio is not equal to 1
+95 percent confidence interval:
+ 1.749430 5.171939
+sample estimates:
+odds ratio 
+  3.019414 
+
+chisq.test(d_caus$Aux, d_caus$CdEvSem)
+
+	Pearson's Chi-squared test with Yates' continuity correction
+
+data:  d_caus$Aux and d_caus$CdEvSem
+X-squared = 18.057, df = 1, p-value = 2.144e-05
+
+
+fisher.test(d_caus$Aux, d_caus$CeSynt)
+
+	Fisher's Exact Test for Count Data
+
+data:  d_caus$Aux and d_caus$CeSynt
+p-value < 2.2e-16
+alternative hypothesis: two.sided
+
+chisq.test(d_caus$Aux, d_caus$CeSynt)
+
+	Pearson's Chi-squared test
+
+data:  d_caus$Aux and d_caus$CeSynt
+X-squared = 71.663, df = 3, p-value = 1.88e-15
+
+Warning message:
+In chisq.test(d_caus$Aux, d_caus$CeSynt) :
+  аппроксимация на основе хи-квадрат может быть неправильной
+
+
+fisher.test(d_caus$Aux, d_caus$EPTrans)
+
+	Fisher's Exact Test for Count Data
+
+data:  d_caus$Aux and d_caus$EPTrans
+p-value = 0.0001198
+alternative hypothesis: true odds ratio is not equal to 1
+95 percent confidence interval:
+ 1.555798 4.430690
+sample estimates:
+odds ratio 
+  2.601174 
+
+chisq.test(d_caus$Aux, d_caus$EPTrans)
+
+	Pearson's Chi-squared test with Yates' continuity correction
+
+data:  d_caus$Aux and d_caus$EPTrans
+X-squared = 14.307, df = 1, p-value = 0.0001553
+
+
+fisher.test(d_caus$Aux, d_caus$Country)
+
+	Fisher's Exact Test for Count Data
+
+data:  d_caus$Aux and d_caus$Country
+p-value = 0.0001062
+alternative hypothesis: true odds ratio is not equal to 1
+95 percent confidence interval:
+ 1.571826 4.387252
+sample estimates:
+odds ratio 
+  2.607761 
+
+chisq.test(d_caus$Aux, d_caus$Country)
+
+	Pearson's Chi-squared test with Yates' continuity correction
+
+data:  d_caus$Aux and d_caus$Country
+X-squared = 14.911, df = 1, p-value = 0.0001127
+
+
+fisher.test(d_caus$Aux, d_caus$Domain)
+
+	Fisher's Exact Test for Count Data
+
+data:  d_caus$Aux and d_caus$Domain
+p-value = 8.741e-06
+alternative hypothesis: two.sided
+
+chisq.test(d_caus$Aux, d_caus$Domain)
+
+	Pearson's Chi-squared test
+
+data:  d_caus$Aux and d_caus$Domain
+X-squared = 29.22, df = 3, p-value = 2.014e-06
+
+```
+
+### 3.2. Test the hypothesis that `Aux` and `EPTrans` are not independent with the help of Pearson's Chi-squared Test. 
+```{r 3.2}
+  
+chisq.test(d_caus$Aux, d_caus$EPTrans)
+
+	Pearson's Chi-squared test with Yates' continuity correction
+
+data:  d_caus$Aux and d_caus$EPTrans
+X-squared = 14.307, df = 1, p-value = 0.0001553
+
+#p-value here is pretty low, which means that there is a low chance (<0.001%) that there is no association between the two columns. 
+```
+
+### 3.3 Provide expected values for Pearson's Chi-squared Test of `Aux` and `EPTrans` variables.
+```{r 3.3}
+htested<-chisq.test(d_caus$Aux, d_caus$EPTrans)
+htested[["expected"]]
+          d_caus$EPTrans
+d_caus$Aux   Intr     Tr
+     doen   40.63  44.37
+     laten 198.37 216.63
+```
+
+### 3.4. Calculate the odds ratio.
+```{r 3.4}
+oddsratio(d_caus$Aux~d_caus$EPTrans)
+log odds ratios for d_caus$Aux and d_caus$EPTrans 
+[1] 0.9578785
+
+oddsratio(d_caus$Aux~d_caus$CrSem)
+log odds ratios for d_caus$Aux and d_caus$CrSem 
+[1] -4.061592
+
+oddsratio(d_caus$Aux~d_caus$CeSem)
+log odds ratios for d_caus$Aux and d_caus$CeSem 
+[1] -0.4672258
+
+oddsratio(d_caus$Aux~d_caus$CdEvSem)
+log odds ratios for d_caus$Aux and d_caus$CdEvSem 
+[1] 1.107776
+
+oddsratio(d_caus$Aux~d_caus$CeSynt)
+log odds ratios for d_caus$Aux and d_caus$CeSynt 
+Clause:Impl     Impl:NP       NP:PP 
+ -0.1804186  -2.7930681   3.0854917 
+ 
+oddsratio(d_caus$Aux~d_caus$Country)
+log odds ratios for d_caus$Aux and d_caus$Country 
+[1] 0.960462
+
+oddsratio(d_caus$Aux~d_caus$Domain)
+log odds ratios for d_caus$Aux and d_caus$Domain 
+       E:F        F:M        M:P 
+ 1.0569260  0.6433256 -0.4739329 
+```
+ 
+### 3.5 Calculate effect size for this test using Cramer's V (phi).
+```{r 3.5}
+#Using the formula from Lab5 (V = sqrt(X-squared / [n_obs * (min(ncols, nrows) – 1)])):
+
+V = sqrt(14.307/500*(min(500,2)-1))
+V
+#[1] 0.1691567
+
+
+#Or using psych:
+
+library(psych)
+phi(table(d_caus$Aux,d_caus$EPTrans))
+#[1] 0.17
+
+#Calculating other V's (but for CeSynt and Domain that have more than two categories):
+
+phi(table(d_caus$Aux,d_caus$CrSem))
+#[1] -0.71
+
+phi(table(d_caus$Aux,d_caus$CeSem))
+#[1] -0.09
+
+phi(table(d_caus$Aux,d_caus$CdEvSem))
+#[1] 0.2
+
+phi(table(d_caus$Aux,d_caus$Country))
+#[1] 0.18
+
+```
+
+### 3.6. Report the results of independence test using the following template:
+```{r 3.6}
+We have found a significant association between variables Aux and EPTrans (p=0.0001553<0.001). The odds in the Intr group were 2.6 times higher than in Tr group. The effest size is small (phi=0.17).
+```
+```
+odds(d_caus$Aux~d_caus$EPTrans)
+ odds for d_caus$Aux by d_caus$EPTrans 
+
+     Intr        Tr 
+0.3131868 0.1201717 
+```
+
+### 3.7 Visualize the distribution using mosaic plot.
+```{r 3.7}
+vcd::mosaic(~ Aux + EPTrans, data=d_caus, shade=TRUE, legend=TRUE)
+```
+
+### 3.8 Why is it not recommended to run multiple Chisq tests of independence on different variables within your dataset whithout adjusting for the multiplicity? (i.e. just testing all the pairs of variables one by one) 
+```
+Testing all pairs one by one might not be a good idea because the more pairs we compare individually, the higher is the probability of assuming a hyphotesis is false when it's actually true (type 1 error). In multiple comparisons, different methods like Bonferroni correction are used to reduce the number of type 1 errors.
+```
+
+### 3.9 Provide a short text (300 words) describing the hypothesis on this study and the results of your analysis.
+```
+In this assignment the following hyphotheses were tested:
+H0: in population there is no correlation between auxiliary verbs and their transitivity;
+H1: there is a correlation between the two variables.
+Using chi-square test, we got p=0.0001553<0.001, so H0 can be rejected and the correlation exists. However, the odds ratio is relatively small (0.95), and the effect size is not that big (phi=0.17, the two variables can not be strongly linked).
+```

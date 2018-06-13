@@ -1,0 +1,299 @@
+---
+title: "Domain specifity of collocations in Russian academic texts"
+output: html_document
+---
+###Authors: Anna Dmitrieva, Aleksandr Klimov
+
+###Data: [full CAT collocation lists](https://drive.google.com/drive/folders/1mIZM04zERm6SnvUZ3pLQPXk71mGAZ3jr), [domain-wise collocation lists]((https://drive.google.com/drive/folders/1k_N-DZ-nLL5ro66-LxIaE4-dRwirdwZh))
+Our data consists of a few lists of collocations of Russian academic texts gathered from the Russian Corpus of Academic Texts (CAT). There are complete lists of word ngrams (from unigrams to sixgrams) obtained from the whole corpus and lists obtained for each domain. For this research, we used complete trigrams and fivegrams lists and trigrams and fivegrams lists of each domain, so 9 datasets alltogether. Each list includes the ngrams, their frequency (raw and relative), POS-tagset and some collocation metrics: PMI, likelihood ratio and t score computed for each ngram.
+
+Please note that I (Anna, the maker of CAT collocation lists) accidently typed "raw frequency" instead of "relative" in the datasets. Yes, in all of them.
+
+###Project description
+This research is focused on two questions: 
+
+Question 1: Are the most significant collocations domain-specific?
+Hypothesis 0: top collocations are the same for all domains
+Hypothesis 1: top collocations are different for each domain
+
+Question 2: Do collocation metrics actually correlate with the frequency and, if yes, how strong is the correlation?
+Hypothesis 0: PMI, t score and likelihood ratio do not correlate with the ngram frequency
+Hyphothesis 1: there is a correlation between collocation metrics and frequency
+
+Let's start with the second question.
+
+###Question 2
+```{r echo=FALSE, include=FALSE}
+library(dplyr)
+library(stats)
+library(ggplot2)
+library(readxl)
+library(knitr)
+```
+
+The reason we are discussing this topic is that all collocation metrics used in this research are believed to be biased towards frequency, t score and likelihood ratio having a direct relation with frequency and PMI having an inverse relation with it. In order to pick the most significant collocations from the list we had to check how strong these correlations might in fact be, and see if it's possible that we end up just taking the most frequent (or, with PMI, infrequent) word sequences out of the lists.
+
+At first, we tried to plot the dispersion of all collocation measures over frequency. In order to be able to plot all three measures at once, we turned all variables to percentiles, so they will range from 0 to 1. Those modified variables are not used in correlations and models.
+```{r echo=FALSE}
+tri=read.csv('trigrams.csv')
+five=read.csv('fivegrams.csv')
+
+percentilerank<-function(x){
+     rx<-rle(sort(x))
+     smaller<-cumsum(c(0, rx$lengths))[seq(length(rx$lengths))]
+     larger<-rev(cumsum(c(0, rev(rx$lengths))))[-1]
+     rxpr<-smaller/(smaller+larger)
+     rxpr[match(x, rx$values)]
+}
+
+perc_pmi3<-percentilerank(tri$pmi)
+perc_tscore3<-percentilerank(tri$t.score)
+perc_lr3<-percentilerank(tri$likelihood.ratio)
+
+perc_pmi5<-percentilerank(five$pmi)
+perc_tscore5<-percentilerank(five$t.score)
+perc_lr5<-percentilerank(five$likelihood.ratio)
+```
+
+```{r echo=FALSE}
+ggplot()+
+geom_point(data=tri, aes(x=tri$frequency, y=perc_pmi3, colour='PMI'), alpha=0.4)+
+geom_point(data=tri, aes(x=tri$frequency, y=perc_lr3, colour='likelihood ratio'),  alpha=0.4)+
+geom_point(data=tri, aes(x=tri$frequency, y=perc_tscore3, colour='t score'),  alpha=0.4)+
+theme_bw()+
+labs(x='Frequency', y='Percentile', title='Trigrams')
+```
+
+```{r echo=FALSE}
+ggplot()+
+geom_point(data=five, aes(x=five$frequency, y=perc_pmi5, colour='PMI'), alpha=0.4)+
+geom_point(data=five, aes(x=five$frequency, y=perc_lr5, colour='likelihood ratio'),  alpha=0.4)+
+geom_point(data=five, aes(x=five$frequency, y=perc_tscore5, colour='t score'),  alpha=0.4)+
+theme_bw()+
+labs(x='Frequency', y='Percentile', title='Fivegrams')
+```
+
+As can be seen, there might be a direct relation between t score and likelihood ratio and frequency and an inverse relation between frequency and PMI, but we have to check if those correlations are actually present, and, if yes, how strong they are. Let's start with trigrams.
+
+####Trigrams (complete corpus list, sample size=50000)
+```{r echo=FALSE}
+tri_samp<-sample_n(tri, 50000)
+summary(tri_samp)
+str(tri_samp)
+```
+
+Checking the variables distribution in order to decide on the correlation tests:
+```{r echo=FALSE}
+ks.test(unique(tri_samp$t.score), 'pnorm', mean(unique(tri_samp$t.score)), sd(unique(tri_samp$t.score)))
+```
+
+```{r echo=FALSE}
+ggplot(tri_samp, aes(tri_samp$t.score, fill='t score'))+geom_density()+theme(legend.position = 'none')
+```
+
+```{r echo=FALSE}
+ks.test(unique(tri_samp$likelihood.ratio), 'pnorm', mean(unique(tri_samp$likelihood.ratio)), sd(unique(tri_samp$likelihood.ratio)))
+```
+
+```{r echo=FALSE}
+ggplot(tri_samp, aes(tri_samp$likelihood.ratio, fill='likelihood ratio'))+geom_density()+theme(legend.position = 'none')
+```
+
+```{r echo=FALSE}
+ks.test(unique(tri_samp$pmi), 'pnorm', mean(unique(tri_samp$pmi)),
+sd(unique(tri_samp$pmi)))
+```
+
+```{r echo=FALSE}
+ggplot(tri_samp, aes(tri_samp$pmi, fill='PMI'))+geom_density()+theme(legend.position = 'none')
+```
+
+None of the variables is normally distributed, so we are using Kendall's tau for correlation tests:
+```{r echo=FALSE}
+cor.test(tri_samp$frequency, tri_samp$pmi, method = 'kendall')
+cor.test(tri_samp$frequency, tri_samp$t.score, method = 'kendall')
+cor.test(tri_samp$frequency, tri_samp$likelihood.ratio, method = 'kendall')
+```
+
+As we can see, the correlations ate present, but they are mostly weak. The weakest correlation is between frequency and PMI (also this is an inverse relation), the highest is between frequency and t score.
+We use linear regression to test if it is possible to predict frequency based on the correlation metrics. Since our metrix are quite complex, we use a polynomial regression model with a degree of 3.
+```{r echo=FALSE}
+lin_model3<-lm(tri_samp$frequency~poly(tri_samp$t.score,3)+poly(tri_samp$likelihood.ratio,3)+poly(tri_samp$pmi,3))
+summary(lin_model3)
+```
+```{r echo=FALSE}
+plot(fitted(lin_model3),residuals(lin_model3))
+```
+As can be seen, frequency can be predicted with all metrics, and the model seems to fit the data pretty well according to adjusted R-squared. However, plot of fitted vs. residuals shows a clear pattern. Newertheless, the model is significant, and its F-statistic is quite high. Overall, we can conclude, that frequency values can be predicted with collocation metrics, but not very accurately.
+
+
+Now to the fivegrams.
+
+
+####Fivegrams (complete corpus list, sample size=50000)
+
+```{r echo=FALSE}
+five_samp<-sample_n(tri, 50000)
+summary(five_samp)
+str(five_samp)
+```
+
+Normality tests:
+```{r echo=FALSE}
+ks.test(unique(five_samp$t.score), 'pnorm', mean(unique(five_samp$t.score)), sd(unique(five_samp$t.score)))
+```
+```{r echo=FALSE}
+ggplot(five_samp, aes(five_samp$t.score, fill='t score'))+geom_density()+theme(legend.position = 'none')
+```
+
+```{r echo=FALSE}
+ks.test(unique(five_samp$likelihood.ratio), 'pnorm', mean(unique(five_samp$likelihood.ratio)), sd(unique(five_samp$likelihood.ratio)))
+```
+
+```{r echo=FALSE}
+ggplot(five_samp, aes(five_samp$likelihood.ratio, fill='likelihood ratio'))+geom_density()+theme(legend.position = 'none')
+```
+
+```{r echo=FALSE}
+ks.test(unique(five_samp$pmi), 'pnorm', mean(unique(five_samp$pmi)),
+sd(unique(five_samp$pmi)))
+```
+
+```{r echo=FALSE}
+ggplot(five_samp, aes(five_samp$pmi, fill='PMI'))+geom_density()+theme(legend.position = 'none')
+```
+
+Correlations:
+```{r echo=FALSE}
+cor.test(five_samp$frequency, five_samp$pmi, method = 'kendall')
+cor.test(five_samp$frequency, five_samp$t.score, method = 'kendall')
+cor.test(five_samp$frequency, five_samp$likelihood.ratio, method = 'kendall')
+```
+Again, none of the metrics is normally distributed and the correlations are about as high as in the previous experiment.
+
+We will use the same polynomial regression formula as in the previous part.
+```{r echo=FALSE}
+lin_model5<-lm(five_samp$frequency~poly(five_samp$t.score,3)+poly(five_samp$likelihood.ratio,3)+poly(five_samp$pmi,3))
+summary(lin_model5)
+```
+
+```{r echo=FALSE}
+plot(fitted(lin_model5),residuals(lin_model5))
+```
+As can be seen, the polynomial regression performs slightly worse with longer collocations. However, all variables are still significant, and adjusted R-squared and F-statistic are quite high.
+These results prove that the relations between collocation frequency and different metrics are indeed present, but they are definitely more complex than simple direct correlations. Therefore, when we are taking the most significant collocations from the lists, those won't be just the most frequent/infrequent word sequences.
+
+Now to question one.
+
+###Question 1
+To determine if the top ranked collocations are domain-specific or not, we first have to extract the most significant trigrams and fivegrams. We chose those which collocation metrics vere all higher than 75% (those from the first percentile). Then, we take intersections between those lists and domain-wise trigram and fivegram lists.
+
+```{r echo=FALSE, include=FALSE}
+
+tri$perc_pmi<-perc_pmi3
+tri$perc_ts<-perc_tscore3
+tri$perc_lr<-perc_lr3
+
+perc13<-tri[which(tri$perc_pmi>=0.75 & tri$perc_ts>=0.75 & tri$perc_lr>=0.75),]
+write.csv(perc13, 'perc13.csv')
+
+five$perc_pmi<-perc_pmi5
+five$perc_ts<-perc_tscore5
+five$perc_lr<-perc_lr5
+
+perc15<-five[which(five$perc_pmi>=0.75 & five$perc_ts>=0.75 & five$perc_lr>=0.75),]
+write.csv(perc15, 'perc15.csv')
+
+hist_trigrams=read_excel('history_collocation_counts.xlsx', sheet=3)
+hist_fivegrams=read_excel('history_collocation_counts.xlsx', sheet=5)
+
+law_trigrams=read_excel('law_collocation_counts.xlsx', sheet=3)
+law_fivegrams=read_excel('law_collocation_counts.xlsx', sheet=5)
+
+ling_trigrams=read_excel('linguistics_collocation_counts.xlsx', sheet=3)
+ling_fivegrams=read_excel('linguistics_collocation_counts.xlsx', sheet=5)
+
+ling_trigrams=read_excel('linguistics_collocation_counts.xlsx', sheet=3)
+ling_fivegrams=read_excel('linguistics_collocation_counts.xlsx', sheet=5)
+
+ec_trigrams=read_excel('economics_collocation_counts.xlsx', sheet=3)
+ec_fivegrams=read_excel('economics_collocation_counts.xlsx', sheet=5)
+
+pol_trigrams=read_excel('politology_collocation_counts.xlsx', sheet=3)
+pol_fivegrams=read_excel('politology_collocation_counts.xlsx', sheet=5)
+
+psy_trigrams=read_excel('psychology_and_pedagogics_collocation_counts.xlsx', sheet=3)
+psy_fivegrams=read_excel('psychology_and_pedagogics_collocation_counts.xlsx', sheet=5)
+
+soc_trigrams=read_excel('sociology_collocation_counts.xlsx', sheet=3)
+soc_fivegrams=read_excel('sociology_collocation_counts.xlsx', sheet=5)
+
+top3<-read_excel('perc13ngram.xlsx')
+top5<-read_excel('perc15ngram.xlsx')
+
+hist_top3<-intersect(hist_trigrams$ngram, top3$ngram)
+law_top3<-intersect(law_trigrams$ngram, top3$ngram)
+ling_top3<-intersect(ling_trigrams$ngram, top3$ngram)
+ec_top3<-intersect(ec_trigrams$ngram, top3$ngram)
+pol_top3<-intersect(pol_trigrams$ngram, top3$ngram)
+psy_top3<-intersect(psy_trigrams$ngram, top3$ngram)
+soc_top3<-intersect(soc_trigrams$ngram, top3$ngram)
+
+hist_top5<-intersect(hist_fivegrams$ngram, top5$ngram)
+law_top5<-intersect(law_fivegrams$ngram, top5$ngram)
+ling_top5<-intersect(ling_fivegrams$ngram, top5$ngram)
+ec_top5<-intersect(ec_fivegrams$ngram, top5$ngram)
+pol_top5<-intersect(pol_fivegrams$ngram, top5$ngram)
+psy_top5<-intersect(psy_fivegrams$ngram, top5$ngram)
+soc_top5<-intersect(soc_fivegrams$ngram, top5$ngram)
+```
+
+Here is the distribution of top ngrams by domains. History is relatively small, because it is a smaller domain that is currently in process of creation. We had 167517 top trigrams and 225742 top fivegrams. Note that domain-wise tops are interseptions between the overall tops and domain collocation lists.
+
+```{r echo=FALSE}
+df3=data.frame(group=c('history','law','linguistics','politology','psychology','sociology','economics'), FR=c(length(hist_top3),length(law_top3),length(ling_top3),length(pol_top3),length(psy_top3),length(soc_top3),length(ec_top3)))
+ggplot(df3, mapping=aes(x = group, y=FR)) + geom_col(aes(fill=group))+labs(x='',y='', title='Trigrams')+ guides(fill=guide_legend(title="domain"))
+```
+
+```{r echo=FALSE}
+df5=data.frame(group=c('history','law','linguistics','politology','psychology','sociology','economics'), FR=c(length(hist_top5),length(law_top5),length(ling_top5),length(pol_top5),length(psy_top5),length(soc_top5),length(ec_top5)))
+ggplot(df5, mapping=aes(x = group, y=FR)) + geom_col(aes(fill=group))+labs(x='',y='', title='Fivegrams')+ guides(fill=guide_legend(title="domain"))
+```
+
+As can be seen, most of the popular ngrams are from economics and politology, and while for economics it is justifiable hence it is a larger domain, for politology it is quite surprising. 
+
+Let's look how many ngrams domain-wise tops have in common. 
+First, we checked how many shared and unique ngrams are there between domain tops.
+
+Trigrams:
+```{r echo=FALSE}
+(length(ling_top3)+length(hist_top3)+length(law_top3)+length(pol_top3)+length(psy_top3)+length(soc_top3)+length(ec_top3))-length(top3$id)
+```
+Fivegrams:
+```{r echo=FALSE}
+(length(ling_top5)+length(hist_top5)+length(law_top5)+length(pol_top5)+length(psy_top5)+length(soc_top5)+length(ec_top5))-length(top5$id)
+```
+
+Next, we looked if there are any top ngrams that are present in all domains. For fivegrams there were no such sequences (however, there was "как бы то ни было" that was present in all lists except for psychology), and for trigrams, the following 8 sequences were found:
+```{r echo=FALSE}
+top3_of_all<-intersect(hist_top3, intersect(law_top3, intersect(ling_top3, intersect(ec_top3, (intersect(pol_top3, (intersect(soc_top3, psy_top3))))))))
+top3_of_all
+```
+
+Finally, let's look how many top ngrams were shared by each domain pair (which is not so much in each case).
+```{r echo=FALSE}
+t3<-data.frame(row.names=c('history','law','linguistics','economics','politology','psychology','sociology'), history=c(length(intersect(hist_top3,hist_top3)), length(intersect(hist_top3,law_top3)), length(intersect(hist_top3,ling_top3)), length(intersect(hist_top3,ec_top3)), length(intersect(hist_top3,pol_top3)), length(intersect(hist_top3,psy_top3)), length(intersect(hist_top3,soc_top3))), law=c(length(intersect(law_top3,hist_top3)), length(intersect(law_top3,law_top3)), length(intersect(law_top3,ling_top3)), length(intersect(law_top3,ec_top3)), length(intersect(law_top3,pol_top3)), length(intersect(law_top3,psy_top3)), length(intersect(law_top3,soc_top3))), linguistics=c(length(intersect(ling_top3,hist_top3)), length(intersect(ling_top3,law_top3)), length(intersect(ling_top3,ling_top3)), length(intersect(ling_top3,ec_top3)), length(intersect(ling_top3,pol_top3)), length(intersect(ling_top3,psy_top3)), length(intersect(ling_top3,soc_top3))), economics=c(length(intersect(ec_top3,hist_top3)), length(intersect(ec_top3,law_top3)), length(intersect(ec_top3,ling_top3)), length(intersect(ec_top3,ec_top3)), length(intersect(ec_top3,pol_top3)), length(intersect(ec_top3,psy_top3)), length(intersect(ec_top3,soc_top3))), politology=c(length(intersect(pol_top3,hist_top3)), length(intersect(pol_top3,law_top3)), length(intersect(pol_top3,ling_top3)), length(intersect(pol_top3,ec_top3)), length(intersect(pol_top3,pol_top3)), length(intersect(pol_top3,psy_top3)), length(intersect(pol_top3,soc_top3))), psychology=c(length(intersect(psy_top3,hist_top3)), length(intersect(psy_top3,law_top3)), length(intersect(psy_top3,ling_top3)), length(intersect(psy_top3,ec_top3)), length(intersect(psy_top3,pol_top3)), length(intersect(psy_top3,psy_top3)), length(intersect(psy_top3,soc_top3))), sociology=c(length(intersect(soc_top3,hist_top3)), length(intersect(soc_top3,law_top3)), length(intersect(soc_top3,ling_top3)), length(intersect(soc_top3,ec_top3)), length(intersect(soc_top3,pol_top3)), length(intersect(soc_top3,psy_top3)), length(intersect(soc_top3,soc_top3))))
+```
+```{r echo=FALSE}
+kable(t3, title='Trigrams')
+```
+```{r echo=FALSE}
+t5<-data.frame(row.names=c('history','law','linguistics','economics','politology','psychology','sociology'), history=c(length(intersect(hist_top5,hist_top5)), length(intersect(hist_top5,law_top5)), length(intersect(hist_top5,ling_top5)), length(intersect(hist_top5,ec_top5)), length(intersect(hist_top5,pol_top5)), length(intersect(hist_top5,psy_top5)), length(intersect(hist_top5,soc_top5))), law=c(length(intersect(law_top5,hist_top5)), length(intersect(law_top5,law_top5)), length(intersect(law_top5,ling_top5)), length(intersect(law_top5,ec_top5)), length(intersect(law_top5,pol_top5)), length(intersect(law_top5,psy_top5)), length(intersect(law_top5,soc_top5))), linguistics=c(length(intersect(ling_top5,hist_top5)), length(intersect(ling_top5,law_top5)), length(intersect(ling_top5,ling_top5)), length(intersect(ling_top5,ec_top5)), length(intersect(ling_top5,pol_top5)), length(intersect(ling_top5,psy_top5)), length(intersect(ling_top5,soc_top5))), economics=c(length(intersect(ec_top5,hist_top5)), length(intersect(ec_top5,law_top5)), length(intersect(ec_top5,ling_top5)), length(intersect(ec_top5,ec_top5)), length(intersect(ec_top5,pol_top5)), length(intersect(ec_top5,psy_top5)), length(intersect(ec_top5,soc_top5))), politology=c(length(intersect(pol_top5,hist_top5)), length(intersect(pol_top5,law_top5)), length(intersect(pol_top5,ling_top5)), length(intersect(pol_top5,ec_top5)), length(intersect(pol_top5,pol_top5)), length(intersect(pol_top5,psy_top5)), length(intersect(pol_top5,soc_top5))), psychology=c(length(intersect(psy_top5,hist_top5)), length(intersect(psy_top5,law_top5)), length(intersect(psy_top5,ling_top5)), length(intersect(psy_top5,ec_top5)), length(intersect(psy_top5,pol_top5)), length(intersect(psy_top5,psy_top5)), length(intersect(psy_top5,soc_top5))), sociology=c(length(intersect(soc_top5,hist_top5)), length(intersect(soc_top5,law_top5)), length(intersect(soc_top5,ling_top5)), length(intersect(soc_top5,ec_top5)), length(intersect(soc_top5,pol_top5)), length(intersect(soc_top5,psy_top5)), length(intersect(soc_top5,soc_top5))))
+```
+```{r echo=FALSE}
+kable(t5, title='Fivegrams')
+```
+
+###Conclusions
+We can conclude that, first, there is a correlation between collocation metrics and frequency, but this correlation, however present, is relatively weak. Second, top (most significant) collocations are different for each domain, with little to no collocations shared by all domains.
+
